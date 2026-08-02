@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>MűszakBér · Kalkulátor</title>
+  <!-- Tailwind via CDN + kiegészítő finomhangolás -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome ikonok (ingyenes) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* Dark mode alap + reszponzív finomítások */
+    body {
+      background: #0b0e14;
+      color: #eef2f6;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      padding-bottom: 80px; /* hely az alsó sávnak */
+      min-height: 100vh;
+    }
+    .card-bg {
+      background: #171e26;
+      border-radius: 24px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    .input-dark {
+      background: #252e3a;
+      border: 1px solid #3a4555;
+      color: white;
+      border-radius: 16px;
+      padding: 10px 12px;
+      font-size: 1.1rem;
+      width: 100%;
+    }
+    .input-dark:focus {
+      outline: 2px solid #5b7cfa;
+      border-color: transparent;
+    }
+    .btn-stepper {
+      background: #2a3442;
+      border: none;
+      color: white;
+      width: 48px;
+      height: 48px;
+      border-radius: 30px;
+      font-size: 1.8rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.15s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+    }
+    .btn-stepper:active {
+      background: #3d4a5c;
+      transform: scale(0.92);
+    }
+    .btn-primary {
+      background: #4a6cf7;
+      border: none;
+      border-radius: 40px;
+      padding: 14px 10px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: white;
+      width: 100%;
+      transition: 0.15s;
+      box-shadow: 0 6px 14px rgba(74, 108, 247, 0.3);
+    }
+    .btn-primary:active {
+      background: #3a5ad9;
+      transform: scale(0.97);
+    }
+    .bottom-nav {
+      background: #131a22;
+      backdrop-filter: blur(4px);
+      border-top: 1px solid #2a3442;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0 12px;
+      z-index: 50;
+    }
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: #7a8a9e;
+      font-size: 0.7rem;
+      transition: 0.1s;
+      padding: 4px 10px;
+      border-radius: 30px;
+    }
+    .nav-item.active {
+      color: #ffffff;
+      background: #283240;
+      padding: 4px 16px;
+    }
+    .nav-item i {
+      font-size: 1.6rem;
+      margin-bottom: 2px;
+    }
+    .stat-bar {
+      background: #252e3a;
+      border-radius: 40px;
+      height: 12px;
+      overflow: hidden;
+    }
+    .stat-bar-fill {
+      height: 100%;
+      background: #4a6cf7;
+      border-radius: 40px;
+    }
+    .history-card {
+      background: #1b232d;
+      border-radius: 20px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      border-left: 5px solid #4a6cf7;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .glass-btn {
+      background: #2a3442;
+      border-radius: 40px;
+      padding: 10px 16px;
+      color: white;
+      border: none;
+      font-weight: 500;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .big-number {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    @media (max-width: 480px) {
+      .big-number { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="max-w-lg mx-auto px-4 py-4">
+
+    <!-- ====== KALKULÁTOR ====== -->
+    <div id="tab-kalkulator" class="tab-content active">
+      <!-- Összegző kártya -->
+      <div class="card-bg p-5 mb-5">
+        <div class="text-sm text-gray-400 uppercase tracking-wide">Bruttó bér</div>
+        <div class="big-number text-white" id="bruttoDisplay">0 Ft</div>
+        <div class="text-sm text-gray-400 uppercase tracking-wide mt-3">Nettó bér (67%)</div>
+        <div class="big-number text-[#7ae0b0]" id="nettoDisplay">0 Ft</div>
+      </div>
+
+      <!-- beviteli mezők -->
+      <div class="space-y-4">
+        <!-- Alap órabér -->
+        <div>
+          <label class="block text-sm text-gray-300 mb-1">Alap órabér (Ft)</label>
+          <div class="flex items-center gap-2">
+            <button class="btn-stepper" data-target="alapOraber" data-dir="-1">−</button>
+            <input id="alapOraber" type="number" class="input-dark text-center text-lg" value="3150" step="50">
+            <button class="btn-stepper" data-target="alapOraber" data-dir="1">+</button>
+          </div>
+        </div>
+
+        <!-- Műszakok léptetővel -->
+        <div class="grid grid-cols-1 gap-3">
+          <div><label class="block text-sm text-gray-300">Délelőtt (1.0x)</label><div class="flex items-center gap-2"><button class="btn-stepper" data-target="delelott" data-dir="-1">−</button><input id="delelott" type="number" class="input-dark text-center" value="0" step="1"><button class="btn-stepper" data-target="delelott" data-dir="1">+</button></div></div>
+          <div><label class="block text-sm text-gray-300">Délután (1.3x)</label><div class="flex items-center gap-2"><button class="btn-stepper" data-target="delutan" data-dir="-1">−</button><input id="delutan" type="number" class="input-dark text-center" value="0" step="1"><button class="btn-stepper" data-target="delutan" data-dir="1">+</button></div></div>
+          <div><label class="block text-sm text-gray-300">Szombat délelőtt (2.0x)</label><div class="flex items-center gap-2"><button class="btn-stepper" data-target="szombatDe" data-dir="-1">−</button><input id="szombatDe" type="number" class="input-dark text-center" value="0" step="1"><button class="btn-stepper" data-target="szombatDe" data-dir="1">+</button></div></div>
+          <div><label class="block text-sm text-gray-300">Szombat délután (2.3x)</label><div class="flex items-center gap-2"><button class="btn-stepper" data-target="szombatDu" data-dir="-1">−</button><input id="szombatDu" type="number" class="input-dark text-center" value="0" step="1"><button class="btn-stepper" data-target="szombatDu" data-dir="1">+</button></div></div>
+          <div><label class="block text-sm text-gray-300">Szabadság (3780 Ft/óra)</label><div class="flex items-center gap-2"><button class="btn-stepper" data-target="szabadsag" data-dir="-1">−</button><input id="szabadsag" type="number" class="input-dark text-center" value="0" step="1"><button class="btn-stepper" data-target="szabadsag" data-dir="1">+</button></div></div>
+        </div>
+
+        <!-- Mentés gomb -->
+        <button id="saveMonthBtn" class="btn-primary mt-4"><i class="fas fa-save mr-2"></i>Hónap mentése</button>
+      </div>
+    </div>
+
+    <!-- ====== STATISZTIKA ====== -->
+    <div id="tab-statisztika" class="tab-content">
+      <h2 class="text-xl font-semibold mb-4">📊 Havi statisztika</h2>
+      <div id="statCard" class="card-bg p-5 space-y-3">
+        <p><span class="text-gray-300">Összes ledolgozott óra:</span> <span id="statOra" class="font-bold">0</span></p>
+        <p><span class="text-gray-300">Átlagos órabér (bruttó):</span> <span id="statAtlag" class="font-bold">0 Ft</span></p>
+        <div><span class="text-gray-300">Műszak megoszlás</span>
+          <div class="mt-2 space-y-1">
+            <div><span class="text-xs">Délelőtt</span><div class="stat-bar"><div id="barDe" class="stat-bar-fill" style="width:0%"></div></div></div>
+            <div><span class="text-xs">Délután</span><div class="stat-bar"><div id="barDu" class="stat-bar-fill" style="width:0%"></div></div></div>
+            <div><span class="text-xs">Szombat</span><div class="stat-bar"><div id="barSzo" class="stat-bar-fill" style="width:0%"></div></div></div>
+          </div>
+        </div>
+        <div class="pt-2 text-sm text-gray-400">* jelenlegi hónap adatai alapján</div>
+      </div>
+      <div class="mt-6 card-bg p-5">
+        <h3 class="font-semibold">📈 Éves fizetés (mentett hónapok)</h3>
+        <div id="yearChart" class="mt-3 space-y-1 text-sm">
+          <p class="text-gray-400">Még nincs mentett adat.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== ELŐZMÉNYEK ====== -->
+    <div id="tab-elozmenyek" class="tab-content">
+      <h2 class="text-xl font-semibold mb-4">📂 Előzmények</h2>
+      <div id="historyList" class="space-y-2"></div>
+    </div>
+
+    <!-- ====== BEÁLLÍTÁSOK ====== -->
+    <div id="tab-beallitasok" class="tab-content">
+      <h2 class="text-xl font-semibold mb-4">⚙️ Beállítások</h2>
+      <div class="card-bg p-5 space-y-4">
+        <div>
+          <label class="block text-sm text-gray-300">Alap órabér (alapértelmezett)</label>
+          <input id="settingsAlapOra" type="number" class="input-dark" value="3150" step="50">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300">Szabadság órabér (alap)</label>
+          <input id="settingsSzabadsagOra" type="number" class="input-dark" value="3780" step="50">
+        </div>
+        <div class="flex flex-wrap gap-3 pt-2">
+          <button id="exportJsonBtn" class="glass-btn"><i class="fas fa-file-export mr-1"></i> JSON export</button>
+          <button id="importJsonBtn" class="glass-btn"><i class="fas fa-file-import mr-1"></i> Import</button>
+          <input type="file" id="fileInput" accept=".json" style="display:none">
+          <button id="resetDataBtn" class="glass-btn text-red-400"><i class="fas fa-trash mr-1"></i> Adatok törlése</button>
+        </div>
+        <!-- téma váltó -->
+        <div class="flex items-center gap-4 pt-2">
+          <span class="text-gray-300">Téma</span>
+          <button id="themeToggle" class="glass-btn"><i class="fas fa-moon mr-1"></i> Sötét</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alsó navigáció -->
+  <nav class="bottom-nav">
+    <div class="nav-item active" data-tab="tab-kalkulator"><i class="fas fa-calculator"></i><span>Kalkulátor</span></div>
+    <div class="nav-item" data-tab="tab-statisztika"><i class="fas fa-chart-simple"></i><span>Statisztika</span></div>
+    <div class="nav-item" data-tab="tab-elozmenyek"><i class="fas fa-clock-rotate-left"></i><span>Előzmények</span></div>
+    <div class="nav-item" data-tab="tab-beallitasok"><i class="fas fa-sliders"></i><span>Beállítások</span></div>
+  </nav>
+
+  <script>
+    (function(){
+      // ----- DOM refs -----
+      const $ = id => document.getElementById(id);
+      const alapOraInput = $('alapOraber');
+      const delott = $('delelott'), delutan = $('delutan'), szDe = $('szombatDe'), szDu = $('szombatDu'), szabadsag = $('szabadsag');
+      const bruttoSpan = $('bruttoDisplay'), nettoSpan = $('nettoDisplay');
+      const saveBtn = $('saveMonthBtn');
+      const historyDiv = $('historyList');
+      const statOra = $('statOra'), statAtlag = $('statAtlag');
+      const barDe = $('barDe'), barDu = $('barDu'), barSzo = $('barSzo');
+      const yearChart = $('yearChart');
+
+      // ----- állapot -----
+      let savedMonths = JSON.parse(localStorage.getItem('berMunkak')) || [];
+
+      // ----- segéd -----
+      function formatFt(v){ return Math.round(v).toLocaleString('hu-HU') + ' Ft'; }
+
+      // ----- számítás & UI frissítés -----
+      function calculateAndUpdate() {
+        const alap = parseFloat(alapOraInput.value) || 0;
+        const d = parseInt(delott.value)||0, du = parseInt(delutan.value)||0;
+        const szd = parseInt(szDe.value)||0, szdu = parseInt(szDu.value)||0;
+        const szab = parseInt(szabadsag.value)||0;
+        const szabOra = parseFloat($('settingsSzabadsagOra')?.value) || 3780;
+
+        const berDe = d * 8 * alap;
+        const berDu = du * 8 * alap * 1.3;
+        const berSzDe = szd * 8 * alap * 2.0;
+        const berSzDu = szdu * 8 * alap * 2.3;
+        const berSzab = szab * 8 * szabOra;
+        const brutto = berDe + berDu + berSzDe + berSzDu + berSzab;
+        const netto = brutto * 0.67;
+        bruttoSpan.innerText = formatFt(brutto);
+        nettoSpan.innerText = formatFt(netto);
+        return { brutto, netto, d, du, szd, szdu, szab, alap, szabOra };
+      }
+
+      // ----- statisztika frissítés -----
+      function updateStats() {
+        const res = calculateAndUpdate();
+        const totalOra = (res.d + res.du + res.szd + res.szdu + res.szab) * 8;
+        statOra.innerText = totalOra;
+        const avg = totalOra > 0 ? (res.brutto / totalOra) : 0;
+        statAtlag.innerText = formatFt(avg);
+        const sum = res.d + res.du + res.szd + res.szdu + res.szab || 1;
+        barDe.style.width = ((res.d / sum) * 100) + '%';
+        barDu.style.width = ((res.du / sum) * 100) + '%';
+        barSzo.style.width = (((res.szd+res.szdu) / sum) * 100) + '%';
+        // éves diagram frissítés
+        renderYearChart();
+      }
+
+      // ----- éves diagram -----
+      function renderYearChart() {
+        if (!savedMonths.length) { yearChart.innerHTML = '<p class="text-gray-400">Még nincs mentett adat.</p>'; return; }
+        let html = '';
+        const sorted = [...savedMonths].sort((a,b)=> a.label.localeCompare(b.label));
+        const max = Math.max(...sorted.map(m=>m.netto||0), 1);
+        sorted.forEach(m => {
+          const pct = Math.max(2, (m.netto / max) * 100);
+          html += `<div class="flex items-center gap-2"><span class="w-24 text-xs truncate">${m.label}</span><div class="stat-bar flex-1"><div class="stat-bar-fill" style="width:${pct}%"></div></div><span class="text-xs">${formatFt(m.netto)}</span></div>`;
+        });
+        yearChart.innerHTML = html;
+      }
+
+      // ----- mentés -----
+      function saveCurrentMonth() {
+        const res = calculateAndUpdate();
+        const label = prompt('Add meg a hónapot (pl. 2026. július):', '2026. ' + new Date().toLocaleString('hu', { month: 'long' }));
+        if (!label) return;
+        const entry = {
+          label,
+          brutto: res.brutto,
+          netto: res.netto,
+          reszletek: { alap: res.alap, delott: res.d, delutan: res.du, szDe: res.szd, szDu: res.szdu, szabadsag: res.szab, szabOra: res.szabOra }
+        };
+        savedMonths.push(entry);
+        localStorage.setItem('berMunkak', JSON.stringify(savedMonths));
+        renderHistory();
+        renderYearChart();
+      }
+
+      // ----- előzmények render -----
+      function renderHistory() {
+        if (!savedMonths.length) { historyDiv.innerHTML = '<p class="text-gray-400">Nincs mentett hónap.</p>'; return; }
+        let html = '';
+        savedMonths.slice().reverse().forEach((m, idx) => {
+          const realIdx = savedMonths.length - 1 - idx;
+          html += `<div class="history-card"><div><div class="font-semibold">${m.label}</div><div class="text-sm text-gray-300">Nettó: ${formatFt(m.netto)}</div></div><div><button class="text-sm text-blue-400 mr-3 detailBtn" data-idx="${realIdx}"><i class="fas fa-eye"></i></button><button class="text-sm text-red-400 deleteBtn" data-idx="${realIdx}"><i class="fas fa-trash-can"></i></button></div></div>`;
+        });
+        historyDiv.innerHTML = html;
+        // események
+        document.querySelectorAll('.deleteBtn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const idx = parseInt(btn.dataset.idx);
+            if (confirm('Törlöd ezt a hónapot?')) {
+              savedMonths.splice(idx, 1);
+              localStorage.setItem('berMunkak', JSON.stringify(savedMonths));
+              renderHistory(); renderYearChart();
+            }
+          });
+        });
+        document.querySelectorAll('.detailBtn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const idx = parseInt(btn.dataset.idx);
+            const m = savedMonths[idx];
+            if (!m) return;
+            const r = m.reszletek || {};
+            alert(`📋 ${m.label}\nBruttó: ${formatFt(m.brutto)}\nNettó: ${formatFt(m.netto)}\n\nDélelőtt: ${r.delott||0} nap\nDélután: ${r.delutan||0} nap\nSzombat DE: ${r.szDe||0} nap\nSzombat DU: ${r.szDu||0} nap\nSzabadság: ${r.szabadsag||0} nap\nAlap órabér: ${r.alap||0} Ft`);
+          });
+        });
+      }
+
+      // ----- léptető események -----
+      document.querySelectorAll('.btn-stepper').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          const targetId = this.dataset.target;
+          const dir = parseInt(this.dataset.dir);
+          const inp = document.getElementById(targetId);
+          if (!inp) return;
+          let val = parseInt(inp.value) || 0;
+          val = Math.max(0, val + dir);
+          inp.value = val;
+          // trigger számítás
+          calculateAndUpdate();
+          updateStats();
+        });
+      });
+
+      // inputok változás
+      [alapOraInput, delott, delutan, szDe, szDu, szabadsag].forEach(inp => {
+        inp.addEventListener('input', function() {
+          calculateAndUpdate();
+          updateStats();
+        });
+      });
+
+      // mentés gomb
+      saveBtn.addEventListener('click', saveCurrentMonth);
+
+      // navigáció
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+          document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+          this.classList.add('active');
+          const tabId = this.dataset.tab;
+          document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+          document.getElementById(tabId).classList.add('active');
+          if (tabId === 'tab-statisztika') updateStats();
+          if (tabId === 'tab-elozmenyek') renderHistory();
+        });
+      });
+
+      // --- beállítások ---
+      $('settingsAlapOra').addEventListener('change', function() {
+        alapOraInput.value = this.value;
+        calculateAndUpdate(); updateStats();
+      });
+      $('settingsSzabadsagOra').addEventListener('change', function() {
+        calculateAndUpdate(); updateStats();
+      });
+      // export
+      $('exportJsonBtn').addEventListener('click', function() {
+        const blob = new Blob([JSON.stringify(savedMonths, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'berek.json';
+        a.click();
+      });
+      // import
+      $('importJsonBtn').addEventListener('click', ()=> $('fileInput').click());
+      $('fileInput').addEventListener('change', function(e) {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            if (Array.isArray(data)) { savedMonths = data; localStorage.setItem('berMunkak', JSON.stringify(savedMonths)); renderHistory(); renderYearChart(); }
+          } catch(e) { alert('Hibás JSON fájl'); }
+        };
+        reader.readAsText(file);
+        this.value = '';
+      });
+      // reset
+      $('resetDataBtn').addEventListener('click', function() {
+        if (confirm('Minden mentett adat törlődik! Biztos?')) {
+          savedMonths = [];
+          localStorage.removeItem('berMunkak');
+          renderHistory(); renderYearChart();
+        }
+      });
+      // téma váltó (csak UI, dark marad)
+      $('themeToggle').addEventListener('click', function() {
+        document.body.style.background = document.body.style.background === 'rgb(11, 14, 20)' ? '#f0f2f5' : '#0b0e14';
+        document.body.style.color = document.body.style.background === '#f0f2f5' ? '#111' : '#eef2f6';
+        // kártyák színe
+        document.querySelectorAll('.card-bg, .history-card').forEach(el => {
+          el.style.background = document.body.style.background === '#f0f2f5' ? '#dfe3e8' : '#171e26';
+        });
+      });
+
+      // kezdő állapot
+      (function init() {
+        // alapértelmezett beállítások szinkron
+        $('settingsAlapOra').value = alapOraInput.value;
+        $('settingsSzabadsagOra').value = '3780';
+        calculateAndUpdate();
+        updateStats();
+        renderHistory();
+        renderYearChart();
+      })();
+
+    })();
+  </script>
+</body>
+</html>

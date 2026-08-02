@@ -1,0 +1,21 @@
+{
+  "name": "MűszakBér Kalkulátor",
+  "short_name": "BérKalk",
+  "description": "Műszakos bérszámoló alkalmazás",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0b0e14",
+  "theme_color": "#4a6cf7",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
