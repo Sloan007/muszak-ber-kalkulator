@@ -203,6 +203,12 @@
             <div><label class="block text-sm text-gray-300 mb-1" for="tuloraKezdes">Kezdés</label><input id="tuloraKezdes" type="time" class="input-dark" value="06:00"></div>
             <div><label class="block text-sm text-gray-300 mb-1" for="tuloraDarab">12 órás műszakok</label><input id="tuloraDarab" type="number" class="input-dark" value="0" min="0" step="1"></div>
           </div>
+          <div class="space-y-3 pt-2 border-t border-gray-700">
+            <h4 class="text-sm font-semibold">Hétköznapi túlóra (választható óraszám)</h4>
+            <div><label class="block text-sm text-gray-300 mb-1" for="hetkoznapDeOra">Délelőtti túlóra (óra, 150%)</label><input id="hetkoznapDeOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
+            <div><label class="block text-sm text-gray-300 mb-1" for="hetkoznapDuOra">Délutáni túlóra (óra, 180%)</label><input id="hetkoznapDuOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
+            <div><label class="block text-sm text-gray-300 mb-1" for="hetkoznapEjOra">Éjszakai túlóra (óra, 200%)</label><input id="hetkoznapEjOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
+          </div>
           <div class="grid grid-cols-1 gap-3 pt-2 border-t border-gray-700">
             <div><label class="block text-sm text-gray-300 mb-1" for="vasarnapDeOra">Vasárnapi délelőtti túlóra (óra, I. műszak – 250%)</label><input id="vasarnapDeOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
             <div><label class="block text-sm text-gray-300 mb-1" for="vasarnapDuOra">Vasárnapi délutáni túlóra (óra, II. műszak – 280%)</label><input id="vasarnapDuOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
@@ -302,6 +308,9 @@
         const tipus = $('tuloraTipus').value;
         const kezdes = $('tuloraKezdes').value || '06:00';
         const darab = Math.max(0, parseInt($('tuloraDarab').value, 10) || 0);
+        const hetDe = Math.max(0, parseFloat($('hetkoznapDeOra').value) || 0);
+        const hetDu = Math.max(0, parseFloat($('hetkoznapDuOra').value) || 0);
+        const hetEj = Math.max(0, parseFloat($('hetkoznapEjOra').value) || 0);
         const vasDe = Math.max(0, parseFloat($('vasarnapDeOra').value) || 0);
         const vasDu = Math.max(0, parseFloat($('vasarnapDuOra').value) || 0);
         const [startHour, startMinute] = kezdes.split(':').map(Number);
@@ -325,14 +334,16 @@
             amount += alap * multiplier / 60;
           }
         }
+        const directWeekday = (hetDe * 1.50 + hetDu * 1.80 + hetEj * 2.00) * alap;
         const directSunday = (vasDe * 2.50 + vasDu * 2.80) * alap;
-        amount += directSunday;
-        const overtimeHours = darab * 12 + vasDe + vasDu;
+        amount += directWeekday + directSunday;
+        const overtimeHours = darab * 12 + hetDe + hetDu + hetEj + vasDe + vasDu;
         const labels = { morning: 'I. műszak', afternoon: 'II. műszak', night: 'III. műszak' };
         const breakdown = Object.entries(totals).filter(([, hours]) => hours > 0)
           .map(([band, hours]) => `${labels[band]} ${hours.toFixed(1)} óra`).join(' · ');
-        $('tuloraReszletek').textContent = `12 órás túlóra: ${breakdown || '0 óra'}${vasDe || vasDu ? ` · Vasárnapi külön túlóra: ${vasDe} óra délelőtt, ${vasDu} óra délután` : ''} · Túlóra összege: ${formatFt(amount)}`;
-        return { amount, hours: overtimeHours, shifts: darab, start: kezdes, type: tipus, sundayMorningHours: vasDe, sundayAfternoonHours: vasDu, breakdown };
+        const weekdaySummary = hetDe || hetDu || hetEj ? `Hétköznapi külön túlóra: ${hetDe} óra délelőtt, ${hetDu} óra délután, ${hetEj} óra éjszaka` : '';
+        $('tuloraReszletek').textContent = `12 órás túlóra: ${breakdown || '0 óra'}${weekdaySummary ? ` · ${weekdaySummary}` : ''}${vasDe || vasDu ? ` · Vasárnapi külön túlóra: ${vasDe} óra délelőtt, ${vasDu} óra délután` : ''} · Túlóra összege: ${formatFt(amount)}`;
+        return { amount, hours: overtimeHours, shifts: darab, start: kezdes, type: tipus, weekdayMorningHours: hetDe, weekdayAfternoonHours: hetDu, weekdayNightHours: hetEj, sundayMorningHours: vasDe, sundayAfternoonHours: vasDu, breakdown };
       }
 
       // ----- számítás & UI frissítés -----
@@ -428,7 +439,7 @@
             if (!m) return;
             const r = m.reszletek || {};
             const o = r.tulora || {};
-            alert(`📋 ${m.label}\nBruttó: ${formatFt(m.brutto)}\nNettó: ${formatFt(m.netto)}\n\nDélelőtt: ${r.delott||0} nap\nDélután: ${r.delutan||0} nap\nSzombat DE: ${r.szDe||0} nap\nSzombat DU: ${r.szDu||0} nap\nSzabadság: ${r.szabadsag||0} nap\n12 órás túlórák: ${o.shifts||0} db, ${o.start||'06:00'} kezdéssel\nVasárnapi túlóra: ${o.sundayMorningHours||0} óra délelőtt, ${o.sundayAfternoonHours||0} óra délután\nAlap órabér: ${r.alap||0} Ft`);
+            alert(`📋 ${m.label}\nBruttó: ${formatFt(m.brutto)}\nNettó: ${formatFt(m.netto)}\n\nDélelőtt: ${r.delott||0} nap\nDélután: ${r.delutan||0} nap\nSzombat DE: ${r.szDe||0} nap\nSzombat DU: ${r.szDu||0} nap\nSzabadság: ${r.szabadsag||0} nap\n12 órás túlórák: ${o.shifts||0} db, ${o.start||'06:00'} kezdéssel\nHétköznapi túlóra: ${o.weekdayMorningHours||0} óra délelőtt, ${o.weekdayAfternoonHours||0} óra délután, ${o.weekdayNightHours||0} óra éjszaka\nVasárnapi túlóra: ${o.sundayMorningHours||0} óra délelőtt, ${o.sundayAfternoonHours||0} óra délután\nAlap órabér: ${r.alap||0} Ft`);
           });
         });
       }
@@ -450,7 +461,7 @@
       });
 
       // inputok változás
-      [alapOraInput, delott, delutan, szDe, szDu, szabadsag, $('tuloraTipus'), $('tuloraKezdes'), $('tuloraDarab'), $('vasarnapDeOra'), $('vasarnapDuOra')].forEach(inp => {
+      [alapOraInput, delott, delutan, szDe, szDu, szabadsag, $('tuloraTipus'), $('tuloraKezdes'), $('tuloraDarab'), $('hetkoznapDeOra'), $('hetkoznapDuOra'), $('hetkoznapEjOra'), $('vasarnapDeOra'), $('vasarnapDuOra')].forEach(inp => {
         inp.addEventListener('input', function() {
           calculateAndUpdate();
           updateStats();
