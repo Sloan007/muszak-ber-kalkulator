@@ -1,4 +1,4 @@
-const CACHE_NAME = 'berkalk-v1';
+const CACHE_NAME = 'berkalk-v2';
 const urlsToCache = [
   'index.html',
   'manifest.json'

@@ -186,6 +186,30 @@
           <div><label class="block text-sm text-gray-300">Szabadság (3780 Ft/óra)</label><div class="flex items-center gap-2"><button class="btn-stepper" data-target="szabadsag" data-dir="-1">−</button><input id="szabadsag" type="number" class="input-dark text-center" value="0" step="1"><button class="btn-stepper" data-target="szabadsag" data-dir="1">+</button></div></div>
         </div>
 
+        <!-- Kiegészítő túlóra számítás; a meglévő műszakmezők változatlanok -->
+        <div class="card-bg p-4 space-y-3">
+          <h3 class="font-semibold">Túlóra (új számítás)</h3>
+          <p class="text-xs text-gray-400">A 12 órás műszak óráit a kezdési időtől számítjuk. I. műszak: 06:00–14:00, II.: 14:00–22:00, III.: 22:00–06:00.</p>
+          <div>
+            <label class="block text-sm text-gray-300 mb-1" for="tuloraTipus">12 órás túlóra típusa</label>
+            <select id="tuloraTipus" class="input-dark">
+              <option value="weekday">Hétköznapi túlóra</option>
+              <option value="weekend50">Hétvégi túlóra – 50%-os kifizetés</option>
+              <option value="weekend100">Hétvégi túlóra – 100%-os kifizetés</option>
+              <option value="sunday">Vasárnapi rendkívüli munka</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="block text-sm text-gray-300 mb-1" for="tuloraKezdes">Kezdés</label><input id="tuloraKezdes" type="time" class="input-dark" value="06:00"></div>
+            <div><label class="block text-sm text-gray-300 mb-1" for="tuloraDarab">12 órás műszakok</label><input id="tuloraDarab" type="number" class="input-dark" value="0" min="0" step="1"></div>
+          </div>
+          <div class="grid grid-cols-1 gap-3 pt-2 border-t border-gray-700">
+            <div><label class="block text-sm text-gray-300 mb-1" for="vasarnapDeOra">Vasárnapi délelőtti túlóra (óra, I. műszak – 250%)</label><input id="vasarnapDeOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
+            <div><label class="block text-sm text-gray-300 mb-1" for="vasarnapDuOra">Vasárnapi délutáni túlóra (óra, II. műszak – 280%)</label><input id="vasarnapDuOra" type="number" class="input-dark" value="0" min="0" step="0.5"></div>
+          </div>
+          <div id="tuloraReszletek" class="text-sm text-gray-300" aria-live="polite"></div>
+        </div>
+
         <!-- Mentés gomb -->
         <button id="saveMonthBtn" class="btn-primary mt-4"><i class="fas fa-save mr-2"></i>Hónap mentése</button>
       </div>
@@ -274,6 +298,43 @@
       // ----- segéd -----
       function formatFt(v){ return Math.round(v).toLocaleString('hu-HU') + ' Ft'; }
 
+      function calculateOvertime(alap) {
+        const tipus = $('tuloraTipus').value;
+        const kezdes = $('tuloraKezdes').value || '06:00';
+        const darab = Math.max(0, parseInt($('tuloraDarab').value, 10) || 0);
+        const vasDe = Math.max(0, parseFloat($('vasarnapDeOra').value) || 0);
+        const vasDu = Math.max(0, parseFloat($('vasarnapDuOra').value) || 0);
+        const [startHour, startMinute] = kezdes.split(':').map(Number);
+        const start = startHour * 60 + startMinute;
+        const premiums = { morning: 0, afternoon: 0.30, night: 0.50 };
+        const totals = { morning: 0, afternoon: 0, night: 0 };
+        let amount = 0;
+
+        // Minute slices handle a start time that falls between whole hours.
+        for (let shift = 0; shift < darab; shift++) {
+          for (let minute = 0; minute < 12 * 60; minute++) {
+            const clock = (start + minute) % (24 * 60);
+            const band = clock >= 360 && clock < 840 ? 'morning' : clock >= 840 && clock < 1320 ? 'afternoon' : 'night';
+            const premium = premiums[band];
+            let multiplier;
+            if (tipus === 'sunday') multiplier = 2.50 + premium;
+            else if (tipus === 'weekend100') multiplier = 2.00 + premium;
+            else if (tipus === 'weekend50') multiplier = 1.50 + premium;
+            else multiplier = 1.50 + premium;
+            totals[band] += 1 / 60;
+            amount += alap * multiplier / 60;
+          }
+        }
+        const directSunday = (vasDe * 2.50 + vasDu * 2.80) * alap;
+        amount += directSunday;
+        const overtimeHours = darab * 12 + vasDe + vasDu;
+        const labels = { morning: 'I. műszak', afternoon: 'II. műszak', night: 'III. műszak' };
+        const breakdown = Object.entries(totals).filter(([, hours]) => hours > 0)
+          .map(([band, hours]) => `${labels[band]} ${hours.toFixed(1)} óra`).join(' · ');
+        $('tuloraReszletek').textContent = `12 órás túlóra: ${breakdown || '0 óra'}${vasDe || vasDu ? ` · Vasárnapi külön túlóra: ${vasDe} óra délelőtt, ${vasDu} óra délután` : ''} · Túlóra összege: ${formatFt(amount)}`;
+        return { amount, hours: overtimeHours, shifts: darab, start: kezdes, type: tipus, sundayMorningHours: vasDe, sundayAfternoonHours: vasDu, breakdown };
+      }
+
       // ----- számítás & UI frissítés -----
       function calculateAndUpdate() {
         const alap = parseFloat(alapOraInput.value) || 0;
@@ -287,17 +348,18 @@
         const berSzDe = szd * 8 * alap * 2.0;
         const berSzDu = szdu * 8 * alap * 2.3;
         const berSzab = szab * 8 * szabOra;
-        const brutto = berDe + berDu + berSzDe + berSzDu + berSzab;
+        const tulora = calculateOvertime(alap);
+        const brutto = berDe + berDu + berSzDe + berSzDu + berSzab + tulora.amount;
         const netto = brutto * 0.67;
         bruttoSpan.innerText = formatFt(brutto);
         nettoSpan.innerText = formatFt(netto);
-        return { brutto, netto, d, du, szd, szdu, szab, alap, szabOra };
+        return { brutto, netto, d, du, szd, szdu, szab, alap, szabOra, tulora };
       }
 
       // ----- statisztika frissítés -----
       function updateStats() {
         const res = calculateAndUpdate();
-        const totalOra = (res.d + res.du + res.szd + res.szdu + res.szab) * 8;
+        const totalOra = (res.d + res.du + res.szd + res.szdu + res.szab) * 8 + res.tulora.hours;
         statOra.innerText = totalOra;
         const avg = totalOra > 0 ? (res.brutto / totalOra) : 0;
         statAtlag.innerText = formatFt(avg);
@@ -331,7 +393,7 @@
           label,
           brutto: res.brutto,
           netto: res.netto,
-          reszletek: { alap: res.alap, delott: res.d, delutan: res.du, szDe: res.szd, szDu: res.szdu, szabadsag: res.szab, szabOra: res.szabOra }
+          reszletek: { alap: res.alap, delott: res.d, delutan: res.du, szDe: res.szd, szDu: res.szdu, szabadsag: res.szab, szabOra: res.szabOra, tulora: res.tulora }
         };
         savedMonths.push(entry);
         localStorage.setItem('berMunkak', JSON.stringify(savedMonths));
@@ -365,7 +427,8 @@
             const m = savedMonths[idx];
             if (!m) return;
             const r = m.reszletek || {};
-            alert(`📋 ${m.label}\nBruttó: ${formatFt(m.brutto)}\nNettó: ${formatFt(m.netto)}\n\nDélelőtt: ${r.delott||0} nap\nDélután: ${r.delutan||0} nap\nSzombat DE: ${r.szDe||0} nap\nSzombat DU: ${r.szDu||0} nap\nSzabadság: ${r.szabadsag||0} nap\nAlap órabér: ${r.alap||0} Ft`);
+            const o = r.tulora || {};
+            alert(`📋 ${m.label}\nBruttó: ${formatFt(m.brutto)}\nNettó: ${formatFt(m.netto)}\n\nDélelőtt: ${r.delott||0} nap\nDélután: ${r.delutan||0} nap\nSzombat DE: ${r.szDe||0} nap\nSzombat DU: ${r.szDu||0} nap\nSzabadság: ${r.szabadsag||0} nap\n12 órás túlórák: ${o.shifts||0} db, ${o.start||'06:00'} kezdéssel\nVasárnapi túlóra: ${o.sundayMorningHours||0} óra délelőtt, ${o.sundayAfternoonHours||0} óra délután\nAlap órabér: ${r.alap||0} Ft`);
           });
         });
       }
@@ -387,7 +450,7 @@
       });
 
       // inputok változás
-      [alapOraInput, delott, delutan, szDe, szDu, szabadsag].forEach(inp => {
+      [alapOraInput, delott, delutan, szDe, szDu, szabadsag, $('tuloraTipus'), $('tuloraKezdes'), $('tuloraDarab'), $('vasarnapDeOra'), $('vasarnapDuOra')].forEach(inp => {
         inp.addEventListener('input', function() {
           calculateAndUpdate();
           updateStats();
